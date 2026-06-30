@@ -8,7 +8,7 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: sans-serif; background: #fff; color: #000; }
 #app { max-width: 600px; margin: 0 auto; padding: 16px; }
-canvas { display: block; width: 100%; border: 1px solid #ccc; }
+canvas { display: block; width: 100%; border: 1px solid #ccc; touch-action: none; user-select: none; -webkit-user-select: none; }
 #preview { text-align: center; font-size: 24px; height: 36px; margin: 8px 0; letter-spacing: 4px; }
 #found { margin-top: 16px; }
 #found h2 { font-size: 16px; margin-bottom: 8px; }
@@ -16,7 +16,7 @@ canvas { display: block; width: 100%; border: 1px solid #ccc; }
 #found li { padding: 4px 12px; background: #eee; border-radius: 4px; font-size: 14px; letter-spacing: 2px; }
 #message { text-align: center; font-size: 18px; margin-top: 12px; }
 </style>
-</head>
+<script type="module" crossorigin src="./index-m5bkj890.js"></script></head>
 <body>
 <div id="app">
   <div id="preview"></div>
@@ -24,6 +24,6 @@ canvas { display: block; width: 100%; border: 1px solid #ccc; }
   <div id="found"><h2>Found</h2><ul></ul></div>
   <div id="message"></div>
 </div>
-<script src="main.js"></script>
+
 </body>
 </html>

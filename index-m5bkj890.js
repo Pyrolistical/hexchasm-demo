@@ -167,18 +167,56 @@ class Game {
   }
   setupInput() {
     const canvas = this.renderer.canvas;
-    canvas.addEventListener("pointerdown", (e) => {
+    const cellAtEvent = (e) => {
       const rect = canvas.getBoundingClientRect();
-      const cellId = this.renderer.cellAtPixel(e.clientX - rect.left, e.clientY - rect.top, this.state.cells);
-      if (cellId !== undefined) {
-        this.state.selectedCells = [cellId];
+      return this.renderer.cellAtPixel(e.clientX - rect.left, e.clientY - rect.top, this.state.cells);
+    };
+    const tryAdd = (cellId) => {
+      const sel = this.state.selectedCells;
+      const last = sel[sel.length - 1];
+      const lastCell = this.state.cells[last];
+      if (!lastCell.neighbors.includes(cellId))
+        return false;
+      const visible = this.buildVisibleEdges();
+      const neededKey = edgeKey(last, cellId);
+      return visible.some((e) => e.key === neededKey);
+    };
+    canvas.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      const cellId = cellAtEvent(e);
+      if (cellId === undefined)
+        return;
+      const sel = this.state.selectedCells;
+      if (sel.length === 0) {
+        sel.push(cellId);
+        this.updatePreview();
+        return;
+      }
+      const lastIdx = sel.length - 1;
+      if (cellId === sel[lastIdx]) {
+        sel.pop();
+        this.updatePreview();
+        return;
+      }
+      const truncIdx = sel.indexOf(cellId);
+      if (truncIdx !== -1) {
+        sel.length = truncIdx + 1;
+        this.updatePreview();
+        return;
+      }
+      if (tryAdd(cellId)) {
+        sel.push(cellId);
+        this.updatePreview();
+      } else {
+        sel.length = 0;
+        sel.push(cellId);
+        this.updatePreview();
       }
     });
     canvas.addEventListener("pointermove", (e) => {
       if (this.state.selectedCells.length === 0)
         return;
-      const rect = canvas.getBoundingClientRect();
-      const cellId = this.renderer.cellAtPixel(e.clientX - rect.left, e.clientY - rect.top, this.state.cells);
+      const cellId = cellAtEvent(e);
       if (cellId === undefined)
         return;
       const sel = this.state.selectedCells;
@@ -189,37 +227,24 @@ class Game {
       }
       if (sel.includes(cellId))
         return;
-      const last = sel[sel.length - 1];
-      const lastCell = this.state.cells[last];
-      if (!lastCell.neighbors.includes(cellId))
-        return;
-      const visible = this.buildVisibleEdges();
-      const neededKey = edgeKey(last, cellId);
-      if (!visible.some((e2) => e2.key === neededKey))
+      if (!tryAdd(cellId))
         return;
       sel.push(cellId);
       this.updatePreview();
     });
     canvas.addEventListener("pointerup", () => {
       const sel = this.state.selectedCells;
-      if (sel.length < 4) {
-        sel.length = 0;
-        this.updatePreview();
+      if (sel.length < 4)
         return;
-      }
       const word = sel.map((id) => this.state.cells[id].letter).join("");
       const placement = this.state.wordMap.get(word);
       if (placement && !this.state.foundWords.has(placement.id)) {
         this.state.foundWords.add(placement.id);
         this.addFoundWord(word);
         this.checkWin();
+        sel.length = 0;
+        this.updatePreview();
       }
-      sel.length = 0;
-      this.updatePreview();
-    });
-    canvas.addEventListener("pointerleave", () => {
-      this.state.selectedCells.length = 0;
-      this.updatePreview();
     });
   }
   updatePreview() {
