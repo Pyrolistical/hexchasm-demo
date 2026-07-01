@@ -115,6 +115,7 @@ class Game {
   messageEl;
   animFrame;
   won;
+  isSwipe;
   constructor(puzzle, renderer) {
     this.renderer = renderer;
     this.previewEl = document.getElementById("preview");
@@ -122,6 +123,7 @@ class Game {
     this.messageEl = document.getElementById("message");
     this.animFrame = 0;
     this.won = false;
+    this.isSwipe = false;
     this.state = null;
     this.load(puzzle);
   }
@@ -191,6 +193,7 @@ class Game {
     };
     canvas.addEventListener("pointerdown", (e) => {
       e.preventDefault();
+      this.isSwipe = false;
       const cellId = cellAtEvent(e);
       if (cellId === undefined)
         return;
@@ -229,6 +232,7 @@ class Game {
         return;
       const sel = this.state.selectedCells;
       if (sel.length >= 2 && cellId === sel[sel.length - 2]) {
+        this.isSwipe = true;
         sel.pop();
         this.updatePreview();
         return;
@@ -237,23 +241,34 @@ class Game {
         return;
       if (!tryAdd(cellId))
         return;
+      this.isSwipe = true;
       sel.push(cellId);
       this.updatePreview();
     });
     canvas.addEventListener("pointerup", () => {
-      const sel = this.state.selectedCells;
-      if (sel.length < 4)
+      if (this.trySubmit())
         return;
-      const word = sel.map((id) => this.state.cells[id].letter).join("");
-      const placement = this.state.wordMap.get(word);
-      if (placement && !this.state.foundWords.has(placement.id)) {
-        this.state.foundWords.add(placement.id);
-        this.addFoundWord(word);
-        this.checkWin();
-        sel.length = 0;
+      if (this.isSwipe) {
+        this.state.selectedCells.length = 0;
         this.updatePreview();
       }
     });
+  }
+  trySubmit() {
+    const sel = this.state.selectedCells;
+    if (sel.length < 4)
+      return false;
+    const word = sel.map((id) => this.state.cells[id].letter).join("");
+    const placement = this.state.wordMap.get(word);
+    if (placement && !this.state.foundWords.has(placement.id)) {
+      this.state.foundWords.add(placement.id);
+      this.addFoundWord(word);
+      this.checkWin();
+      sel.length = 0;
+      this.updatePreview();
+      return true;
+    }
+    return false;
   }
   updatePreview() {
     this.previewEl.textContent = this.state.selectedCells.map((id) => this.state.cells[id].letter.toUpperCase()).join("");
