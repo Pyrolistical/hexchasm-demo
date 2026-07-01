@@ -116,6 +116,16 @@ class Game {
   animFrame;
   won;
   constructor(puzzle, renderer) {
+    this.renderer = renderer;
+    this.previewEl = document.getElementById("preview");
+    this.foundList = document.querySelector("#found ul");
+    this.messageEl = document.getElementById("message");
+    this.animFrame = 0;
+    this.won = false;
+    this.state = null;
+    this.load(puzzle);
+  }
+  load(puzzle) {
     const cellToWords = new Map;
     for (const w of puzzle.words) {
       for (const cid of w.cells) {
@@ -136,12 +146,10 @@ class Game {
       selectedCells: [],
       cellToWords
     };
-    this.renderer = renderer;
-    this.previewEl = document.getElementById("preview");
-    this.foundList = document.querySelector("#found ul");
-    this.messageEl = document.getElementById("message");
-    this.animFrame = 0;
     this.won = false;
+    this.foundList.innerHTML = "";
+    this.messageEl.textContent = "";
+    this.previewEl.textContent = "";
   }
   start() {
     this.setupInput();
@@ -265,8 +273,8 @@ class Game {
 
 // client/main.ts
 async function main() {
-  const resp = await fetch("public/puzzle.json");
-  const puzzle = await resp.json();
+  const resp = await fetch("public/puzzles.json");
+  const data = await resp.json();
   const canvas = document.getElementById("board");
   const renderer = new Renderer(canvas);
   requestAnimationFrame(() => {
@@ -275,7 +283,17 @@ async function main() {
   window.addEventListener("resize", () => {
     renderer.resize();
   });
-  const game = new Game(puzzle, renderer);
+  const picker = document.getElementById("picker");
+  data.puzzles.forEach((_, i) => {
+    const opt = document.createElement("option");
+    opt.value = String(i);
+    opt.textContent = `Puzzle ${i + 1}`;
+    picker.appendChild(opt);
+  });
+  const game = new Game(data.puzzles[0], renderer);
   game.start();
+  picker.addEventListener("change", () => {
+    game.load(data.puzzles[Number(picker.value)]);
+  });
 }
 main();
