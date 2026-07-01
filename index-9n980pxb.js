@@ -145,6 +145,8 @@ class Game {
       wordMap: new Map(puzzle.words.map((w) => [w.word, w])),
       fillerEdges: puzzle.fillerEdges,
       foundWords: new Set,
+      bonusWords: new Set(puzzle.bonusWords),
+      foundBonus: new Set,
       selectedCells: [],
       cellToWords
     };
@@ -262,8 +264,15 @@ class Game {
     const placement = this.state.wordMap.get(word);
     if (placement && !this.state.foundWords.has(placement.id)) {
       this.state.foundWords.add(placement.id);
-      this.addFoundWord(word);
+      this.addFoundWord(word, false);
       this.checkWin();
+      sel.length = 0;
+      this.updatePreview();
+      return true;
+    }
+    if (this.state.bonusWords.has(word) && !this.state.foundBonus.has(word)) {
+      this.state.foundBonus.add(word);
+      this.addFoundWord(word, true);
       sel.length = 0;
       this.updatePreview();
       return true;
@@ -273,9 +282,11 @@ class Game {
   updatePreview() {
     this.previewEl.textContent = this.state.selectedCells.map((id) => this.state.cells[id].letter.toUpperCase()).join("");
   }
-  addFoundWord(word) {
+  addFoundWord(word, bonus) {
     const li = document.createElement("li");
     li.textContent = word.toUpperCase();
+    if (bonus)
+      li.className = "bonus";
     this.foundList.appendChild(li);
   }
   checkWin() {
