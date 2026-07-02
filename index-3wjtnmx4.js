@@ -1,5 +1,4 @@
 // client/renderer.ts
-var TILT = Math.PI / 4;
 var GRID_EXTENT = Math.sqrt(3) * 2;
 
 class Renderer {
@@ -9,6 +8,7 @@ class Renderer {
   originX;
   originY;
   camDist;
+  camHeight;
   focal;
   constructor(canvas) {
     this.canvas = canvas;
@@ -17,6 +17,7 @@ class Renderer {
     this.originX = 0;
     this.originY = 0;
     this.camDist = 0;
+    this.camHeight = 0;
     this.focal = 0;
   }
   resize() {
@@ -24,43 +25,58 @@ class Renderer {
     if (rect.width === 0)
       return;
     const dpr = window.devicePixelRatio || 1;
-    const gridHeight = rect.width * 0.82;
-    this.canvas.width = rect.width * dpr;
-    this.canvas.height = gridHeight * dpr;
-    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.size = rect.width / 8.3;
-    this.camDist = this.size * 8;
+    this.camDist = this.size * 12;
+    this.camHeight = this.camDist;
     this.focal = this.camDist;
     this.originX = rect.width / 2;
     this.originY = 0;
     const extent = GRID_EXTENT * this.size;
-    const [, topY, topScale] = this.project(0, -extent);
-    const [, bottomY, bottomScale] = this.project(0, extent);
-    const topEdge = topY - this.size * 0.42 * topScale;
-    const bottomEdge = bottomY + this.size * 0.42 * bottomScale;
-    this.originY = gridHeight / 2 - (topEdge + bottomEdge) / 2;
+    const top = this.project(0, -extent);
+    const bottom = this.project(0, extent);
+    const radius = this.size * 0.42;
+    const topEdge = top.y - radius * top.scaleY;
+    const bottomEdge = bottom.y + radius * bottom.scaleY;
+    const margin = this.size * 0.25;
+    const gridHeight = bottomEdge - topEdge + margin * 2;
+    this.canvas.width = rect.width * dpr;
+    this.canvas.height = gridHeight * dpr;
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.originY = margin - topEdge;
   }
   project(wx, wy) {
-    const depth = this.camDist - wy * Math.cos(TILT);
-    const scale = this.focal / depth;
-    return [
-      this.originX + wx * scale,
-      this.originY + wy * Math.sin(TILT) * scale,
-      scale
-    ];
+    const depth = this.camDist - wy;
+    const scaleX = this.focal / depth;
+    return {
+      x: this.originX + wx * scaleX,
+      y: this.originY + this.camHeight * scaleX,
+      scaleX,
+      shear: wx * scaleX / depth,
+      scaleY: this.camHeight * scaleX / depth
+    };
   }
-  axialToPixel(q, r) {
+  axialToPlane(q, r) {
     const wx = this.size * (3 / 2) * q;
     const wy = this.size * (Math.sqrt(3) / 2 * q + Math.sqrt(3) * r);
+    return [wx, wy];
+  }
+  projectAxial(q, r) {
+    const [wx, wy] = this.axialToPlane(q, r);
     return this.project(wx, wy);
   }
   cellAtPixel(px, py, cells) {
+    const dy = py - this.originY;
+    if (dy <= 0)
+      return;
+    const depth = this.focal * this.camHeight / dy;
+    const wy = this.camDist - depth;
+    const wx = (px - this.originX) * depth / this.focal;
+    const radius = this.size * 0.45;
     for (const cell of cells) {
-      const [cx, cy, scale] = this.axialToPixel(cell.q, cell.r);
-      const radius = this.size * 0.45 * scale;
-      const dx = px - cx;
-      const dy = py - cy;
-      if (dx * dx + dy * dy < radius * radius) {
+      const [cx, cy] = this.axialToPlane(cell.q, cell.r);
+      const dx = wx - cx;
+      const dw = wy - cy;
+      if (dx * dx + dw * dw < radius * radius) {
         return cell.id;
       }
     }
@@ -71,18 +87,18 @@ class Renderer {
     const w = this.canvas.width / (window.devicePixelRatio || 1);
     const h = this.canvas.height / (window.devicePixelRatio || 1);
     ctx.clearRect(0, 0, w, h);
-    const centers = cells.map((c) => this.axialToPixel(c.q, c.r));
+    const centers = cells.map((c) => this.projectAxial(c.q, c.r));
     ctx.lineWidth = 2;
     ctx.strokeStyle = "#888";
     ctx.beginPath();
     for (const edge of visibleEdges) {
-      const [ax, ay] = centers[edge.a];
-      const [bx, by] = centers[edge.b];
-      ctx.moveTo(ax, ay);
-      ctx.lineTo(bx, by);
+      const a = centers[edge.a];
+      const b = centers[edge.b];
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
     }
     ctx.stroke();
-    const drawOrder = [...cells].sort((a, b) => centers[a.id][1] - centers[b.id][1]);
+    const drawOrder = [...cells].sort((a, b) => centers[a.id].y - centers[b.id].y);
     for (const cell of drawOrder) {
       const wordSet = cellToWords.get(cell.id);
       let active = false;
@@ -96,30 +112,36 @@ class Renderer {
       }
       if (!active)
         continue;
-      const [cx, cy, scale] = centers[cell.id];
+      const p = centers[cell.id];
       const isSelected = selectedCells.includes(cell.id);
       ctx.beginPath();
-      ctx.arc(cx, cy, this.size * 0.42 * scale, 0, Math.PI * 2);
+      ctx.save();
+      ctx.transform(p.scaleX, 0, p.shear, p.scaleY, p.x, p.y);
+      ctx.arc(0, 0, this.size * 0.42, 0, Math.PI * 2);
+      ctx.restore();
       ctx.fillStyle = isSelected ? "#ddd" : "#fff";
       ctx.fill();
       ctx.strokeStyle = "#000";
-      ctx.lineWidth = (isSelected ? 2.5 : 1.5) * scale;
+      ctx.lineWidth = (isSelected ? 2.5 : 1.5) * p.scaleX;
       ctx.stroke();
+      ctx.save();
+      ctx.transform(p.scaleX, 0, p.shear, p.scaleY, p.x, p.y);
       ctx.fillStyle = "#000";
-      ctx.font = `${this.size * 0.5 * scale}px sans-serif`;
+      ctx.font = `${this.size * 0.5}px sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(cell.letter.toUpperCase(), cx, cy);
+      ctx.fillText(cell.letter.toUpperCase(), 0, 0);
+      ctx.restore();
     }
     if (selectedCells.length >= 2) {
       ctx.strokeStyle = "#444";
       ctx.lineWidth = 3;
       ctx.beginPath();
-      const [sx, sy] = centers[selectedCells[0]];
-      ctx.moveTo(sx, sy);
+      const s = centers[selectedCells[0]];
+      ctx.moveTo(s.x, s.y);
       for (let i = 1;i < selectedCells.length; i++) {
-        const [nx, ny] = centers[selectedCells[i]];
-        ctx.lineTo(nx, ny);
+        const n = centers[selectedCells[i]];
+        ctx.lineTo(n.x, n.y);
       }
       ctx.stroke();
     }
