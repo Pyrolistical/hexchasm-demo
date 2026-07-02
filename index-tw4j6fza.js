@@ -1,5 +1,6 @@
 // client/renderer.ts
 var GRID_EXTENT = Math.sqrt(3) * 2;
+var Z_SCALE = 0.5;
 
 class Renderer {
   canvas;
@@ -7,9 +8,6 @@ class Renderer {
   size;
   originX;
   originY;
-  camDist;
-  camHeight;
-  focal;
   viewHeight;
   constructor(canvas) {
     this.canvas = canvas;
@@ -17,9 +15,6 @@ class Renderer {
     this.size = 0;
     this.originX = 0;
     this.originY = 0;
-    this.camDist = 0;
-    this.camHeight = 0;
-    this.focal = 0;
     this.viewHeight = 0;
   }
   resize() {
@@ -28,17 +23,12 @@ class Renderer {
       return;
     const dpr = window.devicePixelRatio || 1;
     this.size = rect.width / 8.3;
-    this.camDist = this.size * 24;
-    this.camHeight = this.camDist;
-    this.focal = this.camDist;
     this.originX = rect.width / 2;
     this.originY = 0;
     const extent = GRID_EXTENT * this.size;
-    const top = this.project(0, -extent);
-    const bottom = this.project(0, extent);
     const radius = this.size * 0.42;
-    const topEdge = top.y - radius * top.scaleY;
-    const bottomEdge = bottom.y + radius * bottom.scaleY;
+    const topEdge = -extent * Z_SCALE - radius * Z_SCALE;
+    const bottomEdge = extent * Z_SCALE + radius * Z_SCALE;
     const margin = this.size * 0.25;
     const gridHeight = bottomEdge - topEdge + margin * 2;
     this.canvas.width = rect.width * dpr;
@@ -48,12 +38,9 @@ class Renderer {
     this.originY = margin - topEdge;
   }
   project(wx, wy) {
-    const depth = this.camDist - wy;
-    const depthScale = this.focal / depth;
     return {
       x: this.originX + wx,
-      y: this.originY + this.camHeight * depthScale,
-      scaleY: this.camHeight * depthScale / depth
+      y: this.originY + wy * Z_SCALE
     };
   }
   axialToPlane(q, r) {
@@ -66,12 +53,8 @@ class Renderer {
     return this.project(wx, wy);
   }
   cellAtPixel(px, py, cells) {
-    const dy = py - this.originY;
-    if (dy <= 0)
-      return;
-    const depth = this.focal * this.camHeight / dy;
-    const wy = this.camDist - depth;
     const wx = px - this.originX;
+    const wy = (py - this.originY) / Z_SCALE;
     const radius = this.size * 0.45;
     for (const cell of cells) {
       const [cx, cy] = this.axialToPlane(cell.q, cell.r);
@@ -100,7 +83,7 @@ class Renderer {
     const ctx = this.ctx;
     ctx.beginPath();
     ctx.save();
-    ctx.transform(1, 0, 0, p.scaleY, p.x, p.y + yOffset);
+    ctx.transform(1, 0, 0, Z_SCALE, p.x, p.y + yOffset);
     ctx.arc(0, 0, this.size * 0.42, 0, Math.PI * 2);
     ctx.restore();
     ctx.fillStyle = isSelected ? "#ddd" : "#fff";
@@ -109,7 +92,7 @@ class Renderer {
     ctx.lineWidth = isSelected ? 2.5 : 1.5;
     ctx.stroke();
     ctx.save();
-    ctx.transform(1, 0, 0, p.scaleY, p.x, p.y + yOffset);
+    ctx.transform(1, 0, 0, Z_SCALE, p.x, p.y + yOffset);
     ctx.fillStyle = "#000";
     ctx.font = `${this.size * 0.5}px sans-serif`;
     ctx.textAlign = "center";
