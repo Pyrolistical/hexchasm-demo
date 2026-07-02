@@ -28,7 +28,7 @@ class Renderer {
       return;
     const dpr = window.devicePixelRatio || 1;
     this.size = rect.width / 8.3;
-    this.camDist = this.size * 12;
+    this.camDist = this.size * 24;
     this.camHeight = this.camDist;
     this.focal = this.camDist;
     this.originX = rect.width / 2;
