@@ -142,6 +142,7 @@ function edgeKey(a, b) {
 
 class Game {
   state;
+  definitions;
   renderer;
   previewEl;
   foundList;
@@ -151,7 +152,8 @@ class Game {
   isSwipe;
   falling;
   lastFrameTime;
-  constructor(puzzle, renderer) {
+  constructor(puzzle, definitions, renderer) {
+    this.definitions = definitions;
     this.renderer = renderer;
     this.previewEl = document.getElementById("preview");
     this.foundList = document.querySelector("#found ul");
@@ -351,10 +353,21 @@ class Game {
   }
   addFoundWord(word, bonus) {
     const li = document.createElement("li");
-    li.textContent = word.toUpperCase();
+    const wordEl = document.createElement("span");
+    wordEl.className = "word";
+    wordEl.textContent = word.toUpperCase();
+    li.appendChild(wordEl);
+    const definition = this.definitions[word];
+    if (definition === undefined) {
+      throw new Error(`no definition for ${word}`);
+    }
+    const definitionEl = document.createElement("span");
+    definitionEl.className = "definition";
+    definitionEl.textContent = definition;
+    li.appendChild(definitionEl);
     if (bonus)
       li.className = "bonus";
-    this.foundList.appendChild(li);
+    this.foundList.prepend(li);
   }
   checkWin() {
     if (this.state.foundWords.size === this.state.words.length) {
@@ -366,8 +379,12 @@ class Game {
 
 // client/main.ts
 async function main() {
-  const resp = await fetch("public/puzzles.json");
-  const data = await resp.json();
+  const [puzzlesResp, definitionsResp] = await Promise.all([
+    fetch("public/puzzles.json"),
+    fetch("public/definitions.json")
+  ]);
+  const data = await puzzlesResp.json();
+  const definitions = await definitionsResp.json();
   const canvas = document.getElementById("board");
   const renderer = new Renderer(canvas);
   requestAnimationFrame(() => {
@@ -383,7 +400,7 @@ async function main() {
     opt.textContent = `Puzzle ${i + 1}`;
     picker.appendChild(opt);
   });
-  const game = new Game(data.puzzles[0], renderer);
+  const game = new Game(data.puzzles[0], definitions, renderer);
   game.start();
   picker.addEventListener("change", () => {
     game.load(data.puzzles[Number(picker.value)]);
