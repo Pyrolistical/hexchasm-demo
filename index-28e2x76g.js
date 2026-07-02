@@ -10,6 +10,7 @@ class Renderer {
   camDist;
   camHeight;
   focal;
+  viewHeight;
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
@@ -19,6 +20,7 @@ class Renderer {
     this.camDist = 0;
     this.camHeight = 0;
     this.focal = 0;
+    this.viewHeight = 0;
   }
   resize() {
     const rect = this.canvas.getBoundingClientRect();
@@ -41,6 +43,7 @@ class Renderer {
     const gridHeight = bottomEdge - topEdge + margin * 2;
     this.canvas.width = rect.width * dpr;
     this.canvas.height = gridHeight * dpr;
+    this.viewHeight = gridHeight;
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.originY = margin - topEdge;
   }
@@ -82,56 +85,59 @@ class Renderer {
     }
     return;
   }
-  draw(cells, visibleEdges, selectedCells, foundWords, words, cellToWords) {
+  drawEdges(centers, edges, yOffset) {
+    const ctx = this.ctx;
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#888";
+    ctx.beginPath();
+    for (const edge of edges) {
+      const a = centers[edge.a];
+      const b = centers[edge.b];
+      ctx.moveTo(a.x, a.y + yOffset);
+      ctx.lineTo(b.x, b.y + yOffset);
+    }
+    ctx.stroke();
+  }
+  drawCell(cell, p, yOffset, isSelected) {
+    const ctx = this.ctx;
+    ctx.beginPath();
+    ctx.save();
+    ctx.transform(p.scaleX, 0, p.shear, p.scaleY, p.x, p.y + yOffset);
+    ctx.arc(0, 0, this.size * 0.42, 0, Math.PI * 2);
+    ctx.restore();
+    ctx.fillStyle = isSelected ? "#ddd" : "#fff";
+    ctx.fill();
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = (isSelected ? 2.5 : 1.5) * p.scaleX;
+    ctx.stroke();
+    ctx.save();
+    ctx.transform(p.scaleX, 0, p.shear, p.scaleY, p.x, p.y + yOffset);
+    ctx.fillStyle = "#000";
+    ctx.font = `${this.size * 0.5}px sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(cell.letter.toUpperCase(), 0, 0);
+    ctx.restore();
+  }
+  draw(cells, visibleEdges, selectedCells, activeCells, falling) {
     const ctx = this.ctx;
     const w = this.canvas.width / (window.devicePixelRatio || 1);
     const h = this.canvas.height / (window.devicePixelRatio || 1);
     ctx.clearRect(0, 0, w, h);
     const centers = cells.map((c) => this.projectAxial(c.q, c.r));
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "#888";
-    ctx.beginPath();
-    for (const edge of visibleEdges) {
-      const a = centers[edge.a];
-      const b = centers[edge.b];
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
-    }
-    ctx.stroke();
+    this.drawEdges(centers, visibleEdges, 0);
     const drawOrder = [...cells].sort((a, b) => centers[a.id].y - centers[b.id].y);
     for (const cell of drawOrder) {
-      const wordSet = cellToWords.get(cell.id);
-      let active = false;
-      if (wordSet) {
-        for (const wid of wordSet) {
-          if (!foundWords.has(wid)) {
-            active = true;
-            break;
-          }
-        }
-      }
-      if (!active)
+      if (!activeCells.has(cell.id))
         continue;
       const p = centers[cell.id];
-      const isSelected = selectedCells.includes(cell.id);
-      ctx.beginPath();
-      ctx.save();
-      ctx.transform(p.scaleX, 0, p.shear, p.scaleY, p.x, p.y);
-      ctx.arc(0, 0, this.size * 0.42, 0, Math.PI * 2);
-      ctx.restore();
-      ctx.fillStyle = isSelected ? "#ddd" : "#fff";
-      ctx.fill();
-      ctx.strokeStyle = "#000";
-      ctx.lineWidth = (isSelected ? 2.5 : 1.5) * p.scaleX;
-      ctx.stroke();
-      ctx.save();
-      ctx.transform(p.scaleX, 0, p.shear, p.scaleY, p.x, p.y);
-      ctx.fillStyle = "#000";
-      ctx.font = `${this.size * 0.5}px sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(cell.letter.toUpperCase(), 0, 0);
-      ctx.restore();
+      this.drawCell(cell, p, 0, selectedCells.includes(cell.id));
+    }
+    for (const item of falling) {
+      this.drawEdges(centers, item.edges, item.offset);
+      for (const id of item.cells) {
+        this.drawCell(cells[id], centers[id], item.offset, false);
+      }
     }
     if (selectedCells.length >= 2) {
       ctx.strokeStyle = "#444";
@@ -162,6 +168,8 @@ class Game {
   animFrame;
   won;
   isSwipe;
+  falling;
+  lastFrameTime;
   constructor(puzzle, renderer) {
     this.renderer = renderer;
     this.previewEl = document.getElementById("preview");
@@ -170,21 +178,12 @@ class Game {
     this.animFrame = 0;
     this.won = false;
     this.isSwipe = false;
+    this.falling = [];
+    this.lastFrameTime = 0;
     this.state = null;
     this.load(puzzle);
   }
   load(puzzle) {
-    const cellToWords = new Map;
-    for (const w of puzzle.words) {
-      for (const cid of w.cells) {
-        let set = cellToWords.get(cid);
-        if (!set) {
-          set = new Set;
-          cellToWords.set(cid, set);
-        }
-        set.add(w.id);
-      }
-    }
     this.state = {
       cells: puzzle.cells,
       words: puzzle.words,
@@ -193,10 +192,10 @@ class Game {
       foundWords: new Set,
       bonusWords: new Set(puzzle.bonusWords),
       foundBonus: new Set,
-      selectedCells: [],
-      cellToWords
+      selectedCells: []
     };
     this.won = false;
+    this.falling = [];
     this.foundList.innerHTML = "";
     this.messageEl.textContent = "";
     this.previewEl.textContent = "";
@@ -206,9 +205,33 @@ class Game {
     this.frame();
   }
   frame() {
+    const now = performance.now();
+    const dt = this.lastFrameTime === 0 ? 0 : (now - this.lastFrameTime) / 1000;
+    this.lastFrameTime = now;
+    this.updateFalling(dt);
     const visible = this.buildVisibleEdges();
-    this.renderer.draw(this.state.cells, visible, this.state.selectedCells, this.state.foundWords, this.state.words, this.state.cellToWords);
+    this.renderer.draw(this.state.cells, visible, this.state.selectedCells, this.activeCells(), this.falling);
     this.animFrame = requestAnimationFrame(() => this.frame());
+  }
+  updateFalling(dt) {
+    const accel = this.renderer.size * 25;
+    const limit = this.renderer.viewHeight + this.renderer.size;
+    this.falling = this.falling.filter((f) => {
+      f.vy += accel * dt;
+      f.offset += f.vy * dt;
+      return f.offset < limit;
+    });
+  }
+  activeCells() {
+    const active = new Set;
+    for (const word of this.state.words) {
+      if (this.state.foundWords.has(word.id))
+        continue;
+      for (const cid of word.cells) {
+        active.add(cid);
+      }
+    }
+    return active;
   }
   buildVisibleEdges() {
     if (this.won)
@@ -227,7 +250,12 @@ class Game {
     const canvas = this.renderer.canvas;
     const cellAtEvent = (e) => {
       const rect = canvas.getBoundingClientRect();
-      return this.renderer.cellAtPixel(e.clientX - rect.left, e.clientY - rect.top, this.state.cells);
+      const cellId = this.renderer.cellAtPixel(e.clientX - rect.left, e.clientY - rect.top, this.state.cells);
+      if (cellId === undefined)
+        return;
+      if (!this.activeCells().has(cellId))
+        return;
+      return cellId;
     };
     const tryAdd = (cellId) => {
       const sel = this.state.selectedCells;
@@ -309,7 +337,7 @@ class Game {
     const word = sel.map((id) => this.state.cells[id].letter).join("");
     const placement = this.state.wordMap.get(word);
     if (placement && !this.state.foundWords.has(placement.id)) {
-      this.state.foundWords.add(placement.id);
+      this.removeWord(placement);
       this.addFoundWord(word, false);
       this.checkWin();
       sel.length = 0;
@@ -324,6 +352,18 @@ class Game {
       return true;
     }
     return false;
+  }
+  removeWord(placement) {
+    const beforeEdges = this.buildVisibleEdges();
+    const beforeCells = this.activeCells();
+    this.state.foundWords.add(placement.id);
+    const afterKeys = new Set(this.buildVisibleEdges().map((e) => e.key));
+    const afterCells = this.activeCells();
+    const cells = [...beforeCells].filter((id) => !afterCells.has(id));
+    const edges = beforeEdges.filter((e) => !afterKeys.has(e.key));
+    if (cells.length > 0 || edges.length > 0) {
+      this.falling.push({ cells, edges, vy: 0, offset: 0 });
+    }
   }
   updatePreview() {
     this.previewEl.textContent = this.state.selectedCells.map((id) => this.state.cells[id].letter.toUpperCase()).join("");
