@@ -1,39 +1,63 @@
 // client/renderer.ts
+var TILT = Math.PI / 4;
+var GRID_EXTENT = Math.sqrt(3) * 2;
+
 class Renderer {
   canvas;
   ctx;
   size;
   originX;
   originY;
+  camDist;
+  focal;
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     this.size = 0;
     this.originX = 0;
     this.originY = 0;
+    this.camDist = 0;
+    this.focal = 0;
   }
   resize() {
     const rect = this.canvas.getBoundingClientRect();
     if (rect.width === 0)
       return;
     const dpr = window.devicePixelRatio || 1;
-    const gridHeight = rect.width * 1.1;
+    const gridHeight = rect.width * 0.82;
     this.canvas.width = rect.width * dpr;
     this.canvas.height = gridHeight * dpr;
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    this.size = rect.width / 7.5;
+    this.size = rect.width / 8.3;
+    this.camDist = this.size * 8;
+    this.focal = this.camDist;
     this.originX = rect.width / 2;
-    this.originY = gridHeight / 2;
+    this.originY = 0;
+    const extent = GRID_EXTENT * this.size;
+    const [, topY, topScale] = this.project(0, -extent);
+    const [, bottomY, bottomScale] = this.project(0, extent);
+    const topEdge = topY - this.size * 0.42 * topScale;
+    const bottomEdge = bottomY + this.size * 0.42 * bottomScale;
+    this.originY = gridHeight / 2 - (topEdge + bottomEdge) / 2;
+  }
+  project(wx, wy) {
+    const depth = this.camDist - wy * Math.cos(TILT);
+    const scale = this.focal / depth;
+    return [
+      this.originX + wx * scale,
+      this.originY + wy * Math.sin(TILT) * scale,
+      scale
+    ];
   }
   axialToPixel(q, r) {
-    const x = this.size * (3 / 2) * q;
-    const y = this.size * (Math.sqrt(3) / 2 * q + Math.sqrt(3) * r);
-    return [this.originX + x, this.originY + y];
+    const wx = this.size * (3 / 2) * q;
+    const wy = this.size * (Math.sqrt(3) / 2 * q + Math.sqrt(3) * r);
+    return this.project(wx, wy);
   }
   cellAtPixel(px, py, cells) {
-    const radius = this.size * 0.45;
     for (const cell of cells) {
-      const [cx, cy] = this.axialToPixel(cell.q, cell.r);
+      const [cx, cy, scale] = this.axialToPixel(cell.q, cell.r);
+      const radius = this.size * 0.45 * scale;
       const dx = px - cx;
       const dy = py - cy;
       if (dx * dx + dy * dy < radius * radius) {
@@ -48,7 +72,6 @@ class Renderer {
     const h = this.canvas.height / (window.devicePixelRatio || 1);
     ctx.clearRect(0, 0, w, h);
     const centers = cells.map((c) => this.axialToPixel(c.q, c.r));
-    const circleRadius = this.size * 0.42;
     ctx.lineWidth = 2;
     ctx.strokeStyle = "#888";
     ctx.beginPath();
@@ -59,7 +82,8 @@ class Renderer {
       ctx.lineTo(bx, by);
     }
     ctx.stroke();
-    for (const cell of cells) {
+    const drawOrder = [...cells].sort((a, b) => centers[a.id][1] - centers[b.id][1]);
+    for (const cell of drawOrder) {
       const wordSet = cellToWords.get(cell.id);
       let active = false;
       if (wordSet) {
@@ -72,17 +96,17 @@ class Renderer {
       }
       if (!active)
         continue;
-      const [cx, cy] = centers[cell.id];
+      const [cx, cy, scale] = centers[cell.id];
       const isSelected = selectedCells.includes(cell.id);
       ctx.beginPath();
-      ctx.arc(cx, cy, circleRadius, 0, Math.PI * 2);
+      ctx.arc(cx, cy, this.size * 0.42 * scale, 0, Math.PI * 2);
       ctx.fillStyle = isSelected ? "#ddd" : "#fff";
       ctx.fill();
       ctx.strokeStyle = "#000";
-      ctx.lineWidth = isSelected ? 2.5 : 1.5;
+      ctx.lineWidth = (isSelected ? 2.5 : 1.5) * scale;
       ctx.stroke();
       ctx.fillStyle = "#000";
-      ctx.font = `${this.size * 0.5}px sans-serif`;
+      ctx.font = `${this.size * 0.5 * scale}px sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(cell.letter.toUpperCase(), cx, cy);
