@@ -49,13 +49,11 @@ class Renderer {
   }
   project(wx, wy) {
     const depth = this.camDist - wy;
-    const scaleX = this.focal / depth;
+    const depthScale = this.focal / depth;
     return {
-      x: this.originX + wx * scaleX,
-      y: this.originY + this.camHeight * scaleX,
-      scaleX,
-      shear: wx * scaleX / depth,
-      scaleY: this.camHeight * scaleX / depth
+      x: this.originX + wx,
+      y: this.originY + this.camHeight * depthScale,
+      scaleY: this.camHeight * depthScale / depth
     };
   }
   axialToPlane(q, r) {
@@ -73,7 +71,7 @@ class Renderer {
       return;
     const depth = this.focal * this.camHeight / dy;
     const wy = this.camDist - depth;
-    const wx = (px - this.originX) * depth / this.focal;
+    const wx = px - this.originX;
     const radius = this.size * 0.45;
     for (const cell of cells) {
       const [cx, cy] = this.axialToPlane(cell.q, cell.r);
@@ -102,16 +100,16 @@ class Renderer {
     const ctx = this.ctx;
     ctx.beginPath();
     ctx.save();
-    ctx.transform(p.scaleX, 0, p.shear, p.scaleY, p.x, p.y + yOffset);
+    ctx.transform(1, 0, 0, p.scaleY, p.x, p.y + yOffset);
     ctx.arc(0, 0, this.size * 0.42, 0, Math.PI * 2);
     ctx.restore();
     ctx.fillStyle = isSelected ? "#ddd" : "#fff";
     ctx.fill();
     ctx.strokeStyle = "#000";
-    ctx.lineWidth = (isSelected ? 2.5 : 1.5) * p.scaleX;
+    ctx.lineWidth = isSelected ? 2.5 : 1.5;
     ctx.stroke();
     ctx.save();
-    ctx.transform(p.scaleX, 0, p.shear, p.scaleY, p.x, p.y + yOffset);
+    ctx.transform(1, 0, 0, p.scaleY, p.x, p.y + yOffset);
     ctx.fillStyle = "#000";
     ctx.font = `${this.size * 0.5}px sans-serif`;
     ctx.textAlign = "center";
