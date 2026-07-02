@@ -1,6 +1,6 @@
 // client/renderer.ts
 var GRID_EXTENT = Math.sqrt(3) * 2;
-var Z_SCALE = 0.5;
+var Z_SCALE = 1;
 
 class Renderer {
   canvas;
