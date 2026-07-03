@@ -352,6 +352,8 @@ class Game {
     this.previewEl.textContent = this.state.selectedCells.map((id) => this.state.cells[id].letter.toUpperCase()).join("");
   }
   addFoundWord(word, bonus) {
+    const older = [...this.foundList.children];
+    const olderTops = older.map((el) => el.getBoundingClientRect().top);
     const li = document.createElement("li");
     const wordEl = document.createElement("span");
     wordEl.className = "word";
@@ -368,6 +370,19 @@ class Game {
     if (bonus)
       li.className = "bonus";
     this.foundList.prepend(li);
+    older.forEach((el, i) => {
+      const delta = olderTops[i] - el.getBoundingClientRect().top;
+      if (delta !== 0) {
+        el.animate([
+          { transform: `translateY(${delta}px)` },
+          { transform: "translateY(0)" }
+        ], { duration: 250, easing: "ease-out" });
+      }
+    });
+    li.animate([{ opacity: 0 }, { opacity: 1 }], {
+      duration: 250,
+      easing: "ease-out"
+    });
   }
   checkWin() {
     if (this.state.foundWords.size === this.state.words.length) {
