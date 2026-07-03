@@ -1,6 +1,7 @@
 // client/renderer.ts
-var GRID_EXTENT = Math.sqrt(3) * 2;
-var Z_SCALE = 0.8;
+var Z_SCALE = 1;
+var RADIUS_FACTOR = 0.42;
+var MARGIN_FACTOR = 0.15;
 
 class Renderer {
   canvas;
@@ -9,6 +10,7 @@ class Renderer {
   originX;
   originY;
   viewHeight;
+  cells;
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
@@ -16,26 +18,37 @@ class Renderer {
     this.originX = 0;
     this.originY = 0;
     this.viewHeight = 0;
+    this.cells = [];
+  }
+  setCells(cells) {
+    this.cells = cells;
+    this.resize();
   }
   resize() {
     const rect = this.canvas.getBoundingClientRect();
-    if (rect.width === 0)
+    if (rect.width === 0 || this.cells.length === 0)
       return;
     const dpr = window.devicePixelRatio || 1;
-    this.size = rect.width / 8.3;
-    this.originX = rect.width / 2;
-    this.originY = 0;
-    const extent = GRID_EXTENT * this.size;
-    const radius = this.size * 0.42;
-    const topEdge = -extent * Z_SCALE - radius * Z_SCALE;
-    const bottomEdge = extent * Z_SCALE + radius * Z_SCALE;
-    const margin = this.size * 0.25;
-    const gridHeight = bottomEdge - topEdge + margin * 2;
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (const cell of this.cells) {
+      const [ux, uy] = this.axialToUnit(cell.q, cell.r);
+      minX = Math.min(minX, ux);
+      maxX = Math.max(maxX, ux);
+      minY = Math.min(minY, uy);
+      maxY = Math.max(maxY, uy);
+    }
+    const pad = RADIUS_FACTOR + MARGIN_FACTOR;
+    this.size = rect.width / (maxX - minX + pad * 2);
+    this.originX = rect.width / 2 - (minX + maxX) / 2 * this.size;
+    const gridHeight = (maxY - minY + pad * 2) * this.size * Z_SCALE;
     this.canvas.width = rect.width * dpr;
     this.canvas.height = gridHeight * dpr;
     this.viewHeight = gridHeight;
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    this.originY = margin - topEdge;
+    this.originY = (pad - minY) * this.size * Z_SCALE;
   }
   project(wx, wy) {
     return {
@@ -43,10 +56,14 @@ class Renderer {
       y: this.originY + wy * Z_SCALE
     };
   }
+  axialToUnit(q, r) {
+    const ux = 3 / 2 * q;
+    const uy = Math.sqrt(3) / 2 * q + Math.sqrt(3) * r;
+    return [ux, uy];
+  }
   axialToPlane(q, r) {
-    const wx = this.size * (3 / 2) * q;
-    const wy = this.size * (Math.sqrt(3) / 2 * q + Math.sqrt(3) * r);
-    return [wx, wy];
+    const [ux, uy] = this.axialToUnit(q, r);
+    return [ux * this.size, uy * this.size];
   }
   projectAxial(q, r) {
     const [wx, wy] = this.axialToPlane(q, r);
@@ -84,7 +101,7 @@ class Renderer {
     ctx.beginPath();
     ctx.save();
     ctx.transform(1, 0, 0, Z_SCALE, p.x, p.y + yOffset);
-    ctx.arc(0, 0, this.size * 0.42, 0, Math.PI * 2);
+    ctx.arc(0, 0, this.size * RADIUS_FACTOR, 0, Math.PI * 2);
     ctx.restore();
     ctx.fillStyle = isSelected ? "#ddd" : "#fff";
     ctx.fill();
@@ -148,11 +165,13 @@ class Game {
   remainingEl;
   foundList;
   messageEl;
+  revealButton;
   animFrame;
   won;
   isSwipe;
   falling;
   lastFrameTime;
+  revealTimeouts;
   constructor(puzzle, definitions, renderer) {
     this.definitions = definitions;
     this.renderer = renderer;
@@ -160,12 +179,17 @@ class Game {
     this.remainingEl = document.getElementById("remaining");
     this.foundList = document.querySelector("#found ul");
     this.messageEl = document.getElementById("message");
+    this.revealButton = document.getElementById("reveal");
     this.animFrame = 0;
     this.won = false;
     this.isSwipe = false;
     this.falling = [];
     this.lastFrameTime = 0;
+    this.revealTimeouts = [];
     this.state = null;
+    this.revealButton.addEventListener("click", () => {
+      this.revealRemaining();
+    });
     this.load(puzzle);
   }
   load(puzzle) {
@@ -181,10 +205,16 @@ class Game {
     };
     this.won = false;
     this.falling = [];
+    for (const id of this.revealTimeouts) {
+      clearTimeout(id);
+    }
+    this.revealTimeouts = [];
+    this.revealButton.disabled = false;
     this.foundList.innerHTML = "";
     this.messageEl.textContent = "";
     this.previewEl.textContent = "";
     this.updateRemaining();
+    this.renderer.setCells(puzzle.cells);
   }
   start() {
     this.setupInput();
@@ -351,6 +381,16 @@ class Game {
     if (cells.length > 0 || edges.length > 0) {
       this.falling.push({ cells, edges, vy: 0, offset: 0 });
     }
+  }
+  revealRemaining() {
+    this.revealButton.disabled = true;
+    const remaining = this.state.words.filter((w) => !this.state.foundWords.has(w.id));
+    remaining.forEach((w, i) => {
+      const id = setTimeout(() => {
+        this.addFoundWord(w.word, false);
+      }, i * 250);
+      this.revealTimeouts.push(id);
+    });
   }
   updateRemaining() {
     const remaining = this.state.words.length - this.state.foundWords.size;
