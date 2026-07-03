@@ -145,6 +145,7 @@ class Game {
   definitions;
   renderer;
   previewEl;
+  remainingEl;
   foundList;
   messageEl;
   animFrame;
@@ -156,6 +157,7 @@ class Game {
     this.definitions = definitions;
     this.renderer = renderer;
     this.previewEl = document.getElementById("preview");
+    this.remainingEl = document.getElementById("remaining");
     this.foundList = document.querySelector("#found ul");
     this.messageEl = document.getElementById("message");
     this.animFrame = 0;
@@ -182,6 +184,7 @@ class Game {
     this.foundList.innerHTML = "";
     this.messageEl.textContent = "";
     this.previewEl.textContent = "";
+    this.updateRemaining();
   }
   start() {
     this.setupInput();
@@ -322,6 +325,7 @@ class Game {
     if (placement && !this.state.foundWords.has(placement.id)) {
       this.removeWord(placement);
       this.addFoundWord(word, false);
+      this.updateRemaining();
       this.checkWin();
       sel.length = 0;
       this.updatePreview();
@@ -347,6 +351,10 @@ class Game {
     if (cells.length > 0 || edges.length > 0) {
       this.falling.push({ cells, edges, vy: 0, offset: 0 });
     }
+  }
+  updateRemaining() {
+    const remaining = this.state.words.length - this.state.foundWords.size;
+    this.remainingEl.textContent = `${remaining} word${remaining === 1 ? "" : "s"} remaining`;
   }
   updatePreview() {
     this.previewEl.textContent = this.state.selectedCells.map((id) => this.state.cells[id].letter.toUpperCase()).join("");
