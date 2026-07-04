@@ -2,6 +2,9 @@
 var Z_SCALE = 1;
 var RADIUS_FACTOR = 0.42;
 var MARGIN_FACTOR = 0.15;
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
 
 class Renderer {
   canvas;
@@ -11,6 +14,14 @@ class Renderer {
   originY;
   viewHeight;
   cells;
+  edgeColor;
+  cellFill;
+  cellSelectedFill;
+  cellStroke;
+  cellSelectedStroke;
+  letterColor;
+  letterSelectedColor;
+  pathColor;
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
@@ -19,6 +30,14 @@ class Renderer {
     this.originY = 0;
     this.viewHeight = 0;
     this.cells = [];
+    this.edgeColor = cssVar("--base01");
+    this.cellFill = cssVar("--cell-background");
+    this.cellSelectedFill = cssVar("--base01");
+    this.cellStroke = cssVar("--base01");
+    this.cellSelectedStroke = cssVar("--base1");
+    this.letterColor = cssVar("--cell-foreground");
+    this.letterSelectedColor = cssVar("--base3");
+    this.pathColor = cssVar("--blue");
   }
   setCells(cells) {
     this.cells = cells;
@@ -86,7 +105,7 @@ class Renderer {
   drawEdges(centers, edges, yOffset) {
     const ctx = this.ctx;
     ctx.lineWidth = 2;
-    ctx.strokeStyle = "#888";
+    ctx.strokeStyle = this.edgeColor;
     ctx.beginPath();
     for (const edge of edges) {
       const a = centers[edge.a];
@@ -103,14 +122,14 @@ class Renderer {
     ctx.transform(1, 0, 0, Z_SCALE, p.x, p.y + yOffset);
     ctx.arc(0, 0, this.size * RADIUS_FACTOR, 0, Math.PI * 2);
     ctx.restore();
-    ctx.fillStyle = isSelected ? "#ddd" : "#fff";
+    ctx.fillStyle = isSelected ? this.cellSelectedFill : this.cellFill;
     ctx.fill();
-    ctx.strokeStyle = "#000";
+    ctx.strokeStyle = isSelected ? this.cellSelectedStroke : this.cellStroke;
     ctx.lineWidth = isSelected ? 2.5 : 1.5;
     ctx.stroke();
     ctx.save();
     ctx.transform(1, 0, 0, Z_SCALE, p.x, p.y + yOffset);
-    ctx.fillStyle = "#000";
+    ctx.fillStyle = isSelected ? this.letterSelectedColor : this.letterColor;
     ctx.font = `${this.size * 0.5}px sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -138,7 +157,7 @@ class Renderer {
       }
     }
     if (selectedCells.length >= 2) {
-      ctx.strokeStyle = "#444";
+      ctx.strokeStyle = this.pathColor;
       ctx.lineWidth = 3;
       ctx.beginPath();
       const s = centers[selectedCells[0]];

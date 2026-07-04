@@ -3,13 +3,47 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="theme-color" content="#ffffff" />
+    <meta name="theme-color" content="#002b36" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <link rel="manifest" href="./manifest-5v9s8avb.webmanifest" />
     <link rel="apple-touch-icon" href="./icon-192-0m7f0dx4.png" />
     <title>Hex Word Connections</title>
     <style>
+      :root {
+        /* solarized theme https://ethanschoonover.com/solarized/ */
+        --base03: #002b36;
+        --base02: #073642;
+        --base01: #586e75;
+        --base00: #657b83;
+        --base0: #839496;
+        --base1: #93a1a1;
+        --base2: #eee8d5;
+        --base3: #fdf6e3;
+        --yellow: #b58900;
+        --orange: #cb4b16;
+        --red: #dc322f;
+        --magenta: #d33682;
+        --violet: #6c71c4;
+        --blue: #268bd2;
+        --cyan: #2aa198;
+        --green: #859900;
+
+        --dark-background: var(--base03);
+        --dark-foreground: var(--base0);
+        --dark-cell-background: var(--base02);
+        --dark-cell-foreground: var(--base0);
+
+        --light-cell-backround: var(--base3);
+        --light-cell-foreground: var(--base00);
+
+        --background: var(--dark-background);
+        --foreground: var(--dark-foreground);
+        --cell-background: var(--dark-cell-background);
+        --cell-foreground: var(--dark-cell-foreground);
+        --rotation-speed: 250ms;
+        color-scheme: dark;
+      }
       * {
         margin: 0;
         padding: 0;
@@ -17,8 +51,8 @@
       }
       body {
         font-family: sans-serif;
-        background: #fff;
-        color: #000;
+        background: var(--background);
+        color: var(--foreground);
         touch-action: manipulation;
         user-select: none;
         -webkit-user-select: none;
@@ -31,7 +65,7 @@
       canvas {
         display: block;
         width: 100%;
-        border: 1px solid #ccc;
+        border: 1px solid var(--base01);
         touch-action: none;
         user-select: none;
         -webkit-user-select: none;
@@ -54,7 +88,7 @@
       #remaining {
         text-align: center;
         font-size: 14px;
-        color: #555;
+        color: var(--base01);
         margin-bottom: 8px;
       }
       #found {
@@ -72,7 +106,8 @@
       }
       #found li {
         padding: 4px 12px;
-        background: #eee;
+        background: var(--cell-background);
+        color: var(--cell-foreground);
         border-radius: 4px;
         font-size: 14px;
         user-select: text;
@@ -84,11 +119,11 @@
         margin-right: 8px;
       }
       #found li .definition {
-        color: #555;
+        color: var(--base01);
       }
       #found li.bonus {
-        background: #fff3cd;
-        color: #856404;
+        background: var(--cell-background);
+        color: var(--yellow);
       }
       #message {
         text-align: center;
@@ -108,7 +143,7 @@
         font-size: 14px;
       }
     </style>
-  <script type="module" crossorigin src="./index-3ye1mxwn.js"></script></head>
+  <script type="module" crossorigin src="./index-233rg4bs.js"></script></head>
   <body>
     <div id="app">
       <select id="picker"></select>
