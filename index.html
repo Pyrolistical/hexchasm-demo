@@ -136,11 +136,144 @@
         background: var(--cell-background);
         color: var(--yellow);
       }
-      #picker {
-        width: 100%;
-        padding: 8px;
+      header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        position: relative;
+        margin-bottom: 12px;
+      }
+      header h1 {
+        font-size: 18px;
+      }
+      #hamburger {
+        background: none;
+        border: none;
+        color: var(--foreground);
+        font-size: 24px;
+        cursor: pointer;
+        padding: 4px 8px;
+      }
+      #menu {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        background: var(--base02);
+        border-radius: 4px;
+        display: flex;
+        flex-direction: column;
+        min-width: 180px;
+        z-index: 1;
+      }
+      #menu[hidden] {
+        display: none;
+      }
+      #menu button,
+      #menu a {
+        text-align: left;
+        padding: 10px 16px;
+        background: none;
+        border: none;
+        color: var(--foreground);
+        font-size: 14px;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      #menu button:hover,
+      #menu a:hover {
+        background: var(--base03);
+      }
+      dialog {
+        background: var(--base02);
+        color: var(--foreground);
+        border: none;
+        border-radius: 8px;
+        padding: 16px;
+        max-width: 420px;
+        margin: auto;
+      }
+      dialog::backdrop {
+        background: rgba(0, 0, 0, 0.5);
+      }
+      dialog h2 {
         font-size: 16px;
         margin-bottom: 12px;
+      }
+      dialog .close {
+        display: block;
+        margin: 16px auto 0;
+        padding: 6px 16px;
+        font-size: 14px;
+      }
+      #howto ul {
+        padding-left: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        font-size: 14px;
+      }
+      .cal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      }
+      .cal-header button {
+        background: none;
+        border: none;
+        color: var(--foreground);
+        font-size: 20px;
+        cursor: pointer;
+        padding: 4px 12px;
+      }
+      .cal-header button:disabled {
+        opacity: 0.3;
+      }
+      #cal-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 40px);
+        gap: 4px;
+      }
+      #cal-grid .dow {
+        text-align: center;
+        font-size: 12px;
+        color: var(--base01);
+      }
+      #cal-grid a,
+      #cal-grid span {
+        display: block;
+        text-align: center;
+        padding: 8px 0;
+        border-radius: 4px;
+        font-size: 14px;
+      }
+      #cal-grid a {
+        color: var(--foreground);
+        text-decoration: none;
+        background: var(--base03);
+      }
+      #cal-grid a:hover {
+        background: var(--blue);
+      }
+      #cal-grid a.selected {
+        background: var(--blue);
+      }
+      #cal-grid span.disabled {
+        color: var(--base01);
+        opacity: 0.4;
+      }
+      #message {
+        text-align: center;
+        padding: 32px 0;
+        font-size: 16px;
+        color: var(--orange);
+      }
+      body.error canvas,
+      body.error #preview,
+      body.error #remaining,
+      body.error #reveal,
+      body.error #found {
+        display: none;
       }
       #reveal[hidden] {
         display: none;
@@ -169,10 +302,19 @@
         position: relative;
       }
     </style>
-  <script type="module" crossorigin src="./index-tpyasq6w.js"></script></head>
+  <script type="module" crossorigin src="./index-2tk5ys2m.js"></script></head>
   <body>
     <div id="app">
-      <select id="picker"></select>
+      <header>
+        <button id="hamburger" aria-label="Menu">&#9776;</button>
+        <h1>Hex Word Connections</h1>
+        <nav id="menu" hidden>
+          <button id="menu-howto">How to play</button>
+          <a href=".">Daily puzzle</a>
+          <button id="menu-past">Past puzzles</button>
+        </nav>
+      </header>
+      <div id="message" hidden></div>
       <div id="preview"></div>
       <div id="remaining"></div>
       <canvas id="board"></canvas>
@@ -184,6 +326,41 @@
         <h2>Found</h2>
         <ul></ul>
       </div>
+      <dialog id="howto">
+        <h2>How to play</h2>
+        <ul>
+          <li>A new puzzle arrives every day.</li>
+          <li>
+            Words are hidden along the lines connecting letters. Trace one by
+            tapping adjacent letters or swiping across them, then release to
+            submit.
+          </li>
+          <li>Every word is at least 4 letters long.</li>
+          <li>
+            Finding a solution word removes its lines from the board. Clear
+            every solution word to finish the puzzle.
+          </li>
+          <li>
+            Other dictionary words you stumble on count as bonus words &mdash;
+            fun, but not required.
+          </li>
+          <li>
+            Stuck? Hold <em>Reveal solution</em> for a second to see the
+            remaining words.
+          </li>
+        </ul>
+        <button class="close">Close</button>
+      </dialog>
+      <dialog id="calendar">
+        <h2>Past puzzles</h2>
+        <div class="cal-header">
+          <button id="cal-prev">&lsaquo;</button>
+          <div id="cal-title"></div>
+          <button id="cal-next">&rsaquo;</button>
+        </div>
+        <div id="cal-grid"></div>
+        <button class="close">Close</button>
+      </dialog>
     </div>
     
   </body>
