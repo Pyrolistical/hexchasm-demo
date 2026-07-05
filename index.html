@@ -282,8 +282,15 @@
       body.error #found {
         display: none;
       }
-      #reveal[hidden] {
+      #reveal[hidden],
+      #reset[hidden] {
         display: none;
+      }
+      #reset {
+        display: block;
+        margin: 12px auto 0;
+        padding: 8px 16px;
+        font-size: 14px;
       }
       #reveal {
         display: block;
@@ -309,7 +316,7 @@
         position: relative;
       }
     </style>
-  <script type="module" crossorigin src="./index-6qvn3pds.js"></script></head>
+  <script type="module" crossorigin src="./index-w7s93akg.js"></script></head>
   <body>
     <div id="app">
       <header>
@@ -329,6 +336,7 @@
         <div class="progress"></div>
         <span>Reveal solution</span>
       </button>
+      <button id="reset" hidden>Reset this puzzle</button>
       <div id="found">
         <h2>Found</h2>
         <ul></ul>
