@@ -127,11 +127,33 @@
         font-size: 18px;
         margin-top: 12px;
       }
+      #message.cleared {
+        color: var(--green);
+        font-size: 32px;
+        font-weight: bold;
+        animation: cleared-pop 0.6s ease-out;
+      }
+      @keyframes cleared-pop {
+        0% {
+          transform: scale(0);
+          opacity: 0;
+        }
+        60% {
+          transform: scale(1.25);
+          opacity: 1;
+        }
+        100% {
+          transform: scale(1);
+        }
+      }
       #picker {
         width: 100%;
         padding: 8px;
         font-size: 16px;
         margin-bottom: 12px;
+      }
+      #reveal[hidden] {
+        display: none;
       }
       #reveal {
         display: block;
@@ -151,13 +173,13 @@
       }
       #reveal.holding .progress {
         width: 100%;
-        transition: width 4s linear;
+        transition: width 1s linear;
       }
       #reveal span {
         position: relative;
       }
     </style>
-  <script type="module" crossorigin src="./index-4k8w8mz5.js"></script></head>
+  <script type="module" crossorigin src="./index-1bp8ptbz.js"></script></head>
   <body>
     <div id="app">
       <select id="picker"></select>
