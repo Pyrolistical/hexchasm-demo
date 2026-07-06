@@ -980,6 +980,12 @@ async function main() {
     return;
   }
   const dayIndex = dayOffset % index.total;
+  document.getElementById("puzzle-date").textContent = new Date(targetUtc).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC"
+  });
   const canvas = document.getElementById("board");
   const renderer = new Renderer(canvas);
   requestAnimationFrame(() => {
