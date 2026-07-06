@@ -805,21 +805,21 @@ function setupMenu(openCalendar) {
     });
   }
 }
-function setupCalendar(todayUtc, selectedUtc, total) {
+function setupCalendar(todayUtc, getSelectedUtc, total, onSelect) {
   const dialog = document.getElementById("calendar");
   const title = document.getElementById("cal-title");
   const grid = document.getElementById("cal-grid");
   const prev = document.getElementById("cal-prev");
   const next = document.getElementById("cal-next");
-  const shown = new Date(Math.min(Math.max(selectedUtc, START_UTC), todayUtc));
-  let year = shown.getUTCFullYear();
-  let month = shown.getUTCMonth();
   const start = new Date(START_UTC);
   const today = new Date(todayUtc);
+  let year = today.getUTCFullYear();
+  let month = today.getUTCMonth();
   function render() {
     title.textContent = new Date(Date.UTC(year, month, 1)).toLocaleDateString(undefined, { month: "long", year: "numeric", timeZone: "UTC" });
     prev.disabled = year === start.getUTCFullYear() && month === start.getUTCMonth();
     next.disabled = year === today.getUTCFullYear() && month === today.getUTCMonth();
+    const selectedUtc = getSelectedUtc();
     const done = completedDates();
     const revealed = revealedDates();
     grid.innerHTML = "";
@@ -854,6 +854,14 @@ function setupCalendar(todayUtc, selectedUtc, total) {
         if (revealed.has(canonical)) {
           a.classList.add("revealed");
         }
+        a.addEventListener("click", (e) => {
+          if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) {
+            return;
+          }
+          e.preventDefault();
+          dialog.close();
+          onSelect(utc);
+        });
         grid.appendChild(a);
       } else {
         const el = document.createElement("span");
@@ -883,6 +891,9 @@ function setupCalendar(todayUtc, selectedUtc, total) {
     render();
   });
   return () => {
+    const shown = new Date(Math.min(Math.max(getSelectedUtc(), START_UTC), todayUtc));
+    year = shown.getUTCFullYear();
+    month = shown.getUTCMonth();
     render();
     dialog.showModal();
   };
@@ -900,35 +911,6 @@ async function main() {
   const serverDate = dateHeader === undefined ? undefined : new Date(dateHeader);
   const now = serverDate === undefined || Number.isNaN(serverDate.getTime()) ? new Date : serverDate;
   const todayUtc = utcMidnight(now);
-  const param = new URLSearchParams(location.search).get("date") ?? undefined;
-  let targetUtc = todayUtc;
-  if (param !== undefined) {
-    const parsed = Date.parse(param);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(param) || Number.isNaN(parsed)) {
-      setupMenu(setupCalendar(todayUtc, todayUtc, index.total));
-      machine.transition({ kind: "error", message: `Invalid date: ${param}` });
-      return;
-    }
-    targetUtc = parsed;
-  }
-  setupMenu(setupCalendar(todayUtc, targetUtc, index.total));
-  setupShare();
-  if (targetUtc > todayUtc) {
-    machine.transition({
-      kind: "error",
-      message: `The puzzle for ${dateString(targetUtc)} isn't available yet.`
-    });
-    return;
-  }
-  const dayOffset = (targetUtc - START_UTC) / DAY_MS;
-  if (dayOffset < 0) {
-    machine.transition({
-      kind: "error",
-      message: `Puzzles start on ${dateString(START_UTC)}.`
-    });
-    return;
-  }
-  const dayIndex = dayOffset % index.total;
   const canvas = document.getElementById("board");
   const renderer = new Renderer(canvas);
   requestAnimationFrame(() => {
@@ -937,13 +919,76 @@ async function main() {
   window.addEventListener("resize", () => {
     renderer.resize();
   });
-  const page = Math.floor(dayIndex / index.pageSize) + 1;
-  const pageResp = await fetch(`public/puzzles/${page}.json`);
-  const pageData = await pageResp.json();
-  const puzzle = pageData.puzzles[dayIndex % index.pageSize];
-  const clearedMessage = targetUtc === todayUtc ? "Come back tomorrow for daily puzzle" : undefined;
-  const game = new Game(puzzle, dateString(puzzleUtc(targetUtc, START_UTC, index.total)), clearedMessage, definitions, renderer, machine);
-  window.game = game;
-  game.start();
+  const pageCache = new Map;
+  let game;
+  async function loadPage(page) {
+    let data = pageCache.get(page);
+    if (data === undefined) {
+      const resp = await fetch(`public/puzzles/${page}.json`);
+      data = await resp.json();
+      pageCache.set(page, data);
+    }
+    return data;
+  }
+  async function showPuzzle(targetUtc) {
+    if (targetUtc > todayUtc) {
+      machine.transition({
+        kind: "error",
+        message: `The puzzle for ${dateString(targetUtc)} isn't available yet.`
+      });
+      return;
+    }
+    const dayOffset = (targetUtc - START_UTC) / DAY_MS;
+    if (dayOffset < 0) {
+      machine.transition({
+        kind: "error",
+        message: `Puzzles start on ${dateString(START_UTC)}.`
+      });
+      return;
+    }
+    const dayIndex = dayOffset % index.total;
+    const page = Math.floor(dayIndex / index.pageSize) + 1;
+    const pageData = await loadPage(page);
+    const puzzle = pageData.puzzles[dayIndex % index.pageSize];
+    const date = dateString(puzzleUtc(targetUtc, START_UTC, index.total));
+    const clearedMessage = targetUtc === todayUtc ? "Come back tomorrow for daily puzzle" : undefined;
+    if (game === undefined) {
+      game = new Game(puzzle, date, clearedMessage, definitions, renderer, machine);
+      window.game = game;
+      game.start();
+    } else {
+      game.date = date;
+      game.clearedMessage = clearedMessage;
+      game.load(puzzle);
+    }
+  }
+  let selectedUtc = todayUtc;
+  function navigate(targetUtc, push) {
+    selectedUtc = targetUtc;
+    if (push) {
+      const url = targetUtc === todayUtc ? location.pathname : `?date=${dateString(targetUtc)}`;
+      history.pushState({}, "", url);
+    }
+    showPuzzle(targetUtc);
+  }
+  setupMenu(setupCalendar(todayUtc, () => selectedUtc, index.total, (utc) => navigate(utc, true)));
+  setupShare();
+  window.addEventListener("popstate", () => {
+    const p = new URLSearchParams(location.search).get("date");
+    const parsed = p === null ? NaN : Date.parse(p);
+    const utc = p !== null && /^\d{4}-\d{2}-\d{2}$/.test(p) && !Number.isNaN(parsed) ? parsed : todayUtc;
+    navigate(utc, false);
+  });
+  const param = new URLSearchParams(location.search).get("date") ?? undefined;
+  if (param !== undefined) {
+    const parsed = Date.parse(param);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(param) || Number.isNaN(parsed)) {
+      machine.transition({ kind: "error", message: `Invalid date: ${param}` });
+      return;
+    }
+    navigate(parsed, false);
+    return;
+  }
+  navigate(todayUtc, false);
 }
 main();
