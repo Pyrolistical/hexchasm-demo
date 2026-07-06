@@ -119,6 +119,8 @@
         color: var(--base01);
       }
       #found li .label {
+        user-select: none;
+        -webkit-user-select: none;
         float: right;
         font-size: 10px;
         text-transform: uppercase;
@@ -284,11 +286,16 @@
       }
       #actions {
         position: relative;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-top: 12px;
       }
       #share {
         position: absolute;
         right: 0;
-        top: 12px;
+        top: 50%;
+        transform: translateY(-50%);
         background: none;
         border: none;
         color: var(--foreground);
@@ -308,9 +315,9 @@
         display: none;
       }
       #share.copied span {
-        display: inline;
+        display: inline-block;
       }
-      #share.copied {
+      #share.copied span {
         animation: share-pop 0.3s ease-out;
       }
       @keyframes share-pop {
@@ -329,14 +336,10 @@
         display: none;
       }
       #reset {
-        display: block;
-        margin: 12px auto 0;
         padding: 8px 16px;
         font-size: 14px;
       }
       #reveal {
-        display: block;
-        margin: 12px auto 0;
         padding: 8px 16px;
         font-size: 14px;
         position: relative;
@@ -358,7 +361,7 @@
         position: relative;
       }
     </style>
-  <script type="module" crossorigin src="./index-78db8kmn.js"></script></head>
+  <script type="module" crossorigin src="./index-cb5g3hv4.js"></script></head>
   <body>
     <div id="app">
       <header>
