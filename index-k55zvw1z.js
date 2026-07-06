@@ -753,7 +753,7 @@ class Machine {
 }
 
 // client/main.ts
-var START_UTC = Date.UTC(2026, 0, 1);
+var START_UTC = Date.UTC(2020, 4, 7);
 function applyState(state) {
   const message = document.getElementById("message");
   const reveal = document.getElementById("reveal");
