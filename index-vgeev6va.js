@@ -655,22 +655,29 @@ class Game {
       return true;
     }
     if (this.state.bonusWords.has(word) && this.state.foundBonus.has(word)) {
-      this.bounceFoundWord(word);
+      this.moveFoundWordToTop(word);
       sel.length = 0;
       this.updatePreview();
       return true;
     }
     return false;
   }
-  bounceFoundWord(word) {
+  moveFoundWordToTop(word) {
     const el = this.foundEls.get(word);
-    if (el === undefined)
+    if (el === undefined || el === this.foundList.firstElementChild)
       return;
-    el.animate([
-      { transform: "translateY(0)" },
-      { transform: "translateY(-10px)" },
-      { transform: "translateY(0)" }
-    ], { duration: 350, easing: "ease-out" });
+    const items = [...this.foundList.children];
+    const beforeTops = items.map((item) => item.getBoundingClientRect().top);
+    this.foundList.prepend(el);
+    items.forEach((item, i) => {
+      const delta = beforeTops[i] - item.getBoundingClientRect().top;
+      if (delta !== 0) {
+        item.animate([
+          { transform: `translateY(${delta}px)` },
+          { transform: "translateY(0)" }
+        ], { duration: 250, easing: "ease-out" });
+      }
+    });
   }
   removeWord(placement) {
     const beforeEdges = this.buildVisibleEdges();
