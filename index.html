@@ -267,6 +267,10 @@
         margin-left: 2px;
         color: var(--yellow);
       }
+      #cal-grid a.done:hover::after,
+      #cal-grid a.done.selected::after {
+        color: var(--base3);
+      }
       #cal-grid a.revealed::after {
         content: "\1F3F3\FE0F";
         font-size: 9px;
@@ -275,6 +279,9 @@
       }
       #cal-grid span.disabled {
         color: var(--base01);
+        opacity: 0.4;
+      }
+      #cal-grid .adjacent {
         opacity: 0.4;
       }
       #message {
@@ -367,7 +374,7 @@
         position: relative;
       }
     </style>
-  <script type="module" crossorigin src="./index-b3fma7c8.js"></script></head>
+  <script type="module" crossorigin src="./index-51t45cnt.js"></script></head>
   <body>
     <div id="app">
       <header>

@@ -826,17 +826,21 @@ function setupCalendar(todayUtc, selectedUtc) {
       el.textContent = dow;
       grid.appendChild(el);
     }
-    const offset = new Date(Date.UTC(year, month, 1)).getUTCDay();
-    for (let i = 0;i < offset; i += 1) {
-      grid.appendChild(document.createElement("span"));
-    }
+    const first = Date.UTC(year, month, 1);
+    const offset = new Date(first).getUTCDay();
     const days = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-    for (let day = 1;day <= days; day += 1) {
-      const utc = Date.UTC(year, month, day);
+    const cells = Math.ceil((offset + days) / 7) * 7;
+    for (let i = 0;i < cells; i += 1) {
+      const utc = first + (i - offset) * DAY_MS;
+      const inMonth = i >= offset && i < offset + days;
+      const day = new Date(utc).getUTCDate();
       if (utc >= START_UTC && utc <= todayUtc) {
         const a = document.createElement("a");
         a.href = `?date=${dateString(utc)}`;
         a.textContent = String(day);
+        if (!inMonth) {
+          a.classList.add("adjacent");
+        }
         if (utc === selectedUtc) {
           a.classList.add("selected");
         }
@@ -850,6 +854,9 @@ function setupCalendar(todayUtc, selectedUtc) {
       } else {
         const el = document.createElement("span");
         el.className = "disabled";
+        if (!inMonth) {
+          el.classList.add("adjacent");
+        }
         el.textContent = String(day);
         grid.appendChild(el);
       }
