@@ -278,9 +278,33 @@
       body.error canvas,
       body.error #preview,
       body.error #remaining,
-      body.error #reveal,
+      body.error #actions,
       body.error #found {
         display: none;
+      }
+      #actions {
+        position: relative;
+      }
+      #share {
+        position: absolute;
+        right: 0;
+        top: 12px;
+        padding: 8px 16px;
+        font-size: 14px;
+      }
+      #share.copied {
+        animation: share-pop 0.3s ease-out;
+      }
+      @keyframes share-pop {
+        0% {
+          transform: scale(0.8);
+        }
+        60% {
+          transform: scale(1.15);
+        }
+        100% {
+          transform: scale(1);
+        }
       }
       #reveal[hidden],
       #reset[hidden] {
@@ -316,7 +340,7 @@
         position: relative;
       }
     </style>
-  <script type="module" crossorigin src="./index-k97f5bza.js"></script></head>
+  <script type="module" crossorigin src="./index-3t9j1rb8.js"></script></head>
   <body>
     <div id="app">
       <header>
@@ -332,11 +356,14 @@
       <div id="preview"></div>
       <div id="remaining"></div>
       <canvas id="board"></canvas>
-      <button id="reveal">
-        <div class="progress"></div>
-        <span>Reveal solution</span>
-      </button>
-      <button id="reset" hidden>Reset this puzzle</button>
+      <div id="actions">
+        <button id="reveal">
+          <div class="progress"></div>
+          <span>Reveal solution</span>
+        </button>
+        <button id="reset" hidden>Reset this puzzle</button>
+        <button id="share">Share</button>
+      </div>
       <div id="found">
         <h2>Found</h2>
         <ul></ul>
