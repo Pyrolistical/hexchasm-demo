@@ -250,6 +250,9 @@ function dateString(utc) {
 function utcMidnight(d) {
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }
+function puzzleUtc(utc, startUtc, total) {
+  return startUtc + (utc - startUtc) / DAY_MS % total * DAY_MS;
+}
 
 // client/storage.ts
 var COMPLETED_KEY = "completed";
@@ -802,7 +805,7 @@ function setupMenu(openCalendar) {
     });
   }
 }
-function setupCalendar(todayUtc, selectedUtc) {
+function setupCalendar(todayUtc, selectedUtc, total) {
   const dialog = document.getElementById("calendar");
   const title = document.getElementById("cal-title");
   const grid = document.getElementById("cal-grid");
@@ -844,10 +847,11 @@ function setupCalendar(todayUtc, selectedUtc) {
         if (utc === selectedUtc) {
           a.classList.add("selected");
         }
-        if (done.has(dateString(utc))) {
+        const canonical = dateString(puzzleUtc(utc, START_UTC, total));
+        if (done.has(canonical)) {
           a.classList.add("done");
         }
-        if (revealed.has(dateString(utc))) {
+        if (revealed.has(canonical)) {
           a.classList.add("revealed");
         }
         grid.appendChild(a);
@@ -901,13 +905,13 @@ async function main() {
   if (param !== undefined) {
     const parsed = Date.parse(param);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(param) || Number.isNaN(parsed)) {
-      setupMenu(setupCalendar(todayUtc, todayUtc));
+      setupMenu(setupCalendar(todayUtc, todayUtc, index.total));
       machine.transition({ kind: "error", message: `Invalid date: ${param}` });
       return;
     }
     targetUtc = parsed;
   }
-  setupMenu(setupCalendar(todayUtc, targetUtc));
+  setupMenu(setupCalendar(todayUtc, targetUtc, index.total));
   setupShare();
   if (targetUtc > todayUtc) {
     machine.transition({
@@ -916,21 +920,15 @@ async function main() {
     });
     return;
   }
-  const dayIndex = (targetUtc - START_UTC) / DAY_MS;
-  if (dayIndex < 0) {
+  const dayOffset = (targetUtc - START_UTC) / DAY_MS;
+  if (dayOffset < 0) {
     machine.transition({
       kind: "error",
       message: `Puzzles start on ${dateString(START_UTC)}.`
     });
     return;
   }
-  if (dayIndex >= index.total) {
-    machine.transition({
-      kind: "error",
-      message: `No puzzle for ${dateString(targetUtc)}.`
-    });
-    return;
-  }
+  const dayIndex = dayOffset % index.total;
   const canvas = document.getElementById("board");
   const renderer = new Renderer(canvas);
   requestAnimationFrame(() => {
@@ -943,13 +941,8 @@ async function main() {
   const pageResp = await fetch(`public/puzzles/${page}.json`);
   const pageData = await pageResp.json();
   const puzzle = pageData.puzzles[dayIndex % index.pageSize];
-  let clearedMessage;
-  if (dayIndex === index.total - 1) {
-    clearedMessage = "Thank you for playing, you’ve reached the end.";
-  } else if (targetUtc === todayUtc) {
-    clearedMessage = "Come back tomorrow for daily puzzle";
-  }
-  const game = new Game(puzzle, dateString(targetUtc), clearedMessage, definitions, renderer, machine);
+  const clearedMessage = targetUtc === todayUtc ? "Come back tomorrow for daily puzzle" : undefined;
+  const game = new Game(puzzle, dateString(puzzleUtc(targetUtc, START_UTC, index.total)), clearedMessage, definitions, renderer, machine);
   window.game = game;
   game.start();
 }
