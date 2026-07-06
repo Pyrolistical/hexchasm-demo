@@ -671,6 +671,7 @@ class Game {
     wordEl.className = "word";
     wordEl.textContent = word.toUpperCase();
     li.appendChild(wordEl);
+    li.append(" ");
     const definition = this.definitions[word];
     if (definition === undefined) {
       throw new Error(`no definition for ${word}`);
