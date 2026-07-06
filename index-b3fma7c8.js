@@ -253,6 +253,7 @@ function utcMidnight(d) {
 
 // client/storage.ts
 var COMPLETED_KEY = "completed";
+var REVEALED_KEY = "revealed";
 var PROGRESS_KEY = "progress";
 function expandEntry(entry) {
   const [start, end] = entry.split("/");
@@ -287,21 +288,36 @@ function reconcile(entries) {
   const days = [...new Set(entries.flatMap(expandEntry))].sort((a, b) => a - b);
   return compress(days);
 }
-function completedEntries() {
-  const raw = localStorage.getItem(COMPLETED_KEY) ?? undefined;
+function readEntries(key) {
+  const raw = localStorage.getItem(key) ?? undefined;
   return raw === undefined ? [] : JSON.parse(raw);
 }
+function readDates(key) {
+  return new Set(readEntries(key).flatMap(expandEntry).map(dateString));
+}
+function mark(key, date) {
+  const entries = readEntries(key);
+  entries.push(date);
+  localStorage.setItem(key, JSON.stringify(reconcile(entries)));
+}
+function unmark(key, date) {
+  const days = readEntries(key).flatMap(expandEntry).filter((utc) => dateString(utc) !== date);
+  localStorage.setItem(key, JSON.stringify(reconcile(days.map(dateString))));
+}
 function completedDates() {
-  return new Set(completedEntries().flatMap(expandEntry).map(dateString));
+  return readDates(COMPLETED_KEY);
 }
 function markCompleted(date) {
-  const entries = completedEntries();
-  entries.push(date);
-  localStorage.setItem(COMPLETED_KEY, JSON.stringify(reconcile(entries)));
+  mark(COMPLETED_KEY, date);
 }
 function unmarkCompleted(date) {
-  const days = completedEntries().flatMap(expandEntry).filter((utc) => dateString(utc) !== date);
-  localStorage.setItem(COMPLETED_KEY, JSON.stringify(reconcile(days.map(dateString))));
+  unmark(COMPLETED_KEY, date);
+}
+function revealedDates() {
+  return readDates(REVEALED_KEY);
+}
+function markRevealed(date) {
+  mark(REVEALED_KEY, date);
 }
 function loadProgress(date) {
   const raw = localStorage.getItem(PROGRESS_KEY) ?? undefined;
@@ -429,27 +445,25 @@ class Game {
       return;
     }
     const progress = loadProgress(this.date);
-    if (progress === undefined) {
-      return;
-    }
-    this.found = progress.found;
-    for (const entry of this.found) {
-      if (entry.bonus) {
-        this.state.foundBonus.add(entry.word);
-      } else {
-        this.state.foundWords.add(this.state.wordMap.get(entry.word).id);
+    if (progress !== undefined) {
+      this.found = progress.found;
+      for (const entry of this.found) {
+        if (entry.bonus) {
+          this.state.foundBonus.add(entry.word);
+        } else {
+          this.state.foundWords.add(this.state.wordMap.get(entry.word).id);
+        }
+        this.addFoundWord(entry.word, entry.bonus);
       }
-      this.addFoundWord(entry.word, entry.bonus);
     }
-    if (progress.revealed) {
+    if (revealedDates().has(this.date)) {
       this.revealRemaining();
     }
   }
   persist() {
     saveProgress({
       date: this.date,
-      found: this.found,
-      revealed: this.machine.is("revealed")
+      found: this.found
     });
   }
   start() {
@@ -641,6 +655,7 @@ class Game {
   }
   revealRemaining() {
     this.machine.transition({ kind: "revealed" });
+    markRevealed(this.date);
     this.persist();
     this.state.selectedCells.length = 0;
     this.updatePreview();
@@ -803,6 +818,7 @@ function setupCalendar(todayUtc, selectedUtc) {
     prev.disabled = year === start.getUTCFullYear() && month === start.getUTCMonth();
     next.disabled = year === today.getUTCFullYear() && month === today.getUTCMonth();
     const done = completedDates();
+    const revealed = revealedDates();
     grid.innerHTML = "";
     for (const dow of ["S", "M", "T", "W", "T", "F", "S"]) {
       const el = document.createElement("span");
@@ -826,6 +842,9 @@ function setupCalendar(todayUtc, selectedUtc) {
         }
         if (done.has(dateString(utc))) {
           a.classList.add("done");
+        }
+        if (revealed.has(dateString(utc))) {
+          a.classList.add("revealed");
         }
         grid.appendChild(a);
       } else {
