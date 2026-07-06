@@ -242,6 +242,20 @@ class Renderer {
   }
 }
 
+// client/definitions.ts
+class Definitions {
+  map;
+  constructor() {
+    this.map = {};
+  }
+  get(word) {
+    return this.map[word];
+  }
+  merge(chunk) {
+    Object.assign(this.map, chunk);
+  }
+}
+
 // client/dates.ts
 var DAY_MS = 24 * 60 * 60 * 1000;
 function dateString(utc) {
@@ -350,6 +364,7 @@ class Game {
   clearedMessage;
   found;
   definitions;
+  pendingDefinitions;
   renderer;
   previewEl;
   remainingEl;
@@ -370,6 +385,7 @@ class Game {
     this.clearedMessage = clearedMessage;
     this.found = [];
     this.definitions = definitions;
+    this.pendingDefinitions = [];
     this.renderer = renderer;
     this.machine = machine;
     this.previewEl = document.getElementById("preview");
@@ -431,6 +447,7 @@ class Game {
     this.cancelRevealHold();
     this.machine.transition({ kind: "playing" });
     this.foundList.innerHTML = "";
+    this.pendingDefinitions = [];
     this.previewEl.textContent = "";
     this.found = [];
     this.restore();
@@ -690,13 +707,14 @@ class Game {
     wordEl.textContent = word.toUpperCase();
     li.appendChild(wordEl);
     li.append(" ");
-    const definition = this.definitions[word];
-    if (definition === undefined) {
-      throw new Error(`no definition for ${word}`);
-    }
     const definitionEl = document.createElement("span");
     definitionEl.className = "definition";
-    definitionEl.textContent = definition;
+    const definition = this.definitions.get(word);
+    if (definition === undefined) {
+      this.pendingDefinitions.push({ word, el: definitionEl });
+    } else {
+      definitionEl.textContent = definition;
+    }
     li.appendChild(definitionEl);
     if (bonus)
       li.className = "bonus";
@@ -713,6 +731,16 @@ class Game {
     li.animate([{ opacity: 0 }, { opacity: 1 }], {
       duration: 250,
       easing: "ease-out"
+    });
+  }
+  applyDefinitions() {
+    this.pendingDefinitions = this.pendingDefinitions.filter(({ word, el }) => {
+      const definition = this.definitions.get(word);
+      if (definition === undefined) {
+        return true;
+      }
+      el.textContent = definition;
+      return false;
     });
   }
   checkWin() {
@@ -805,21 +833,21 @@ function setupMenu(openCalendar) {
     });
   }
 }
-function setupCalendar(todayUtc, getSelectedUtc, total, onSelect) {
+function setupCalendar(todayUtc, selectedUtc, total) {
   const dialog = document.getElementById("calendar");
   const title = document.getElementById("cal-title");
   const grid = document.getElementById("cal-grid");
   const prev = document.getElementById("cal-prev");
   const next = document.getElementById("cal-next");
+  const shown = new Date(Math.min(Math.max(selectedUtc, START_UTC), todayUtc));
+  let year = shown.getUTCFullYear();
+  let month = shown.getUTCMonth();
   const start = new Date(START_UTC);
   const today = new Date(todayUtc);
-  let year = today.getUTCFullYear();
-  let month = today.getUTCMonth();
   function render() {
     title.textContent = new Date(Date.UTC(year, month, 1)).toLocaleDateString(undefined, { month: "long", year: "numeric", timeZone: "UTC" });
     prev.disabled = year === start.getUTCFullYear() && month === start.getUTCMonth();
     next.disabled = year === today.getUTCFullYear() && month === today.getUTCMonth();
-    const selectedUtc = getSelectedUtc();
     const done = completedDates();
     const revealed = revealedDates();
     grid.innerHTML = "";
@@ -854,14 +882,6 @@ function setupCalendar(todayUtc, getSelectedUtc, total, onSelect) {
         if (revealed.has(canonical)) {
           a.classList.add("revealed");
         }
-        a.addEventListener("click", (e) => {
-          if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) {
-            return;
-          }
-          e.preventDefault();
-          dialog.close();
-          onSelect(utc);
-        });
         grid.appendChild(a);
       } else {
         const el = document.createElement("span");
@@ -891,9 +911,6 @@ function setupCalendar(todayUtc, getSelectedUtc, total, onSelect) {
     render();
   });
   return () => {
-    const shown = new Date(Math.min(Math.max(getSelectedUtc(), START_UTC), todayUtc));
-    year = shown.getUTCFullYear();
-    month = shown.getUTCMonth();
     render();
     dialog.showModal();
   };
@@ -901,16 +918,41 @@ function setupCalendar(todayUtc, getSelectedUtc, total, onSelect) {
 async function main() {
   const machine = new Machine(applyState);
   window.machine = machine;
-  const [indexResp, definitionsResp] = await Promise.all([
-    fetch("public/puzzles/index.json"),
-    fetch("public/definitions.json")
-  ]);
+  const indexResp = await fetch("public/puzzles/index.json");
   const index = await indexResp.json();
-  const definitions = await definitionsResp.json();
   const dateHeader = indexResp.headers.get("date") ?? undefined;
   const serverDate = dateHeader === undefined ? undefined : new Date(dateHeader);
   const now = serverDate === undefined || Number.isNaN(serverDate.getTime()) ? new Date : serverDate;
   const todayUtc = utcMidnight(now);
+  const param = new URLSearchParams(location.search).get("date") ?? undefined;
+  let targetUtc = todayUtc;
+  if (param !== undefined) {
+    const parsed = Date.parse(param);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(param) || Number.isNaN(parsed)) {
+      setupMenu(setupCalendar(todayUtc, todayUtc, index.total));
+      machine.transition({ kind: "error", message: `Invalid date: ${param}` });
+      return;
+    }
+    targetUtc = parsed;
+  }
+  setupMenu(setupCalendar(todayUtc, targetUtc, index.total));
+  setupShare();
+  if (targetUtc > todayUtc) {
+    machine.transition({
+      kind: "error",
+      message: `The puzzle for ${dateString(targetUtc)} isn't available yet.`
+    });
+    return;
+  }
+  const dayOffset = (targetUtc - START_UTC) / DAY_MS;
+  if (dayOffset < 0) {
+    machine.transition({
+      kind: "error",
+      message: `Puzzles start on ${dateString(START_UTC)}.`
+    });
+    return;
+  }
+  const dayIndex = dayOffset % index.total;
   const canvas = document.getElementById("board");
   const renderer = new Renderer(canvas);
   requestAnimationFrame(() => {
@@ -919,76 +961,25 @@ async function main() {
   window.addEventListener("resize", () => {
     renderer.resize();
   });
-  const pageCache = new Map;
-  let game;
-  async function loadPage(page) {
-    let data = pageCache.get(page);
-    if (data === undefined) {
-      const resp = await fetch(`public/puzzles/${page}.json`);
-      data = await resp.json();
-      pageCache.set(page, data);
-    }
-    return data;
+  const page = Math.floor(dayIndex / index.pageSize) + 1;
+  const pageResp = await fetch(`public/puzzles/${page}.json`);
+  const pageData = await pageResp.json();
+  const puzzle = pageData.puzzles[dayIndex % index.pageSize];
+  const clearedMessage = targetUtc === todayUtc ? "Come back tomorrow for daily puzzle" : undefined;
+  const definitions = new Definitions;
+  const game = new Game(puzzle, dateString(puzzleUtc(targetUtc, START_UTC, index.total)), clearedMessage, definitions, renderer, machine);
+  window.game = game;
+  game.start();
+  loadDefinitions(definitions, game, page);
+}
+async function loadDefinitions(definitions, game, page) {
+  const resp = await fetch(`public/definitions/${page}.json`);
+  const chunk = await resp.json();
+  definitions.merge(chunk);
+  game.applyDefinitions();
+  if (game.pendingDefinitions.length > 0) {
+    const words = game.pendingDefinitions.map((p) => p.word).join(", ");
+    throw new Error(`no definition for ${words}`);
   }
-  async function showPuzzle(targetUtc) {
-    if (targetUtc > todayUtc) {
-      machine.transition({
-        kind: "error",
-        message: `The puzzle for ${dateString(targetUtc)} isn't available yet.`
-      });
-      return;
-    }
-    const dayOffset = (targetUtc - START_UTC) / DAY_MS;
-    if (dayOffset < 0) {
-      machine.transition({
-        kind: "error",
-        message: `Puzzles start on ${dateString(START_UTC)}.`
-      });
-      return;
-    }
-    const dayIndex = dayOffset % index.total;
-    const page = Math.floor(dayIndex / index.pageSize) + 1;
-    const pageData = await loadPage(page);
-    const puzzle = pageData.puzzles[dayIndex % index.pageSize];
-    const date = dateString(puzzleUtc(targetUtc, START_UTC, index.total));
-    const clearedMessage = targetUtc === todayUtc ? "Come back tomorrow for daily puzzle" : undefined;
-    if (game === undefined) {
-      game = new Game(puzzle, date, clearedMessage, definitions, renderer, machine);
-      window.game = game;
-      game.start();
-    } else {
-      game.date = date;
-      game.clearedMessage = clearedMessage;
-      game.load(puzzle);
-    }
-  }
-  let selectedUtc = todayUtc;
-  function navigate(targetUtc, push) {
-    selectedUtc = targetUtc;
-    if (push) {
-      const url = targetUtc === todayUtc ? location.pathname : `?date=${dateString(targetUtc)}`;
-      history.pushState({}, "", url);
-    }
-    showPuzzle(targetUtc);
-  }
-  setupMenu(setupCalendar(todayUtc, () => selectedUtc, index.total, (utc) => navigate(utc, true)));
-  setupShare();
-  window.addEventListener("popstate", () => {
-    const p = new URLSearchParams(location.search).get("date");
-    const parsed = p === null ? NaN : Date.parse(p);
-    const utc = p !== null && /^\d{4}-\d{2}-\d{2}$/.test(p) && !Number.isNaN(parsed) ? parsed : todayUtc;
-    navigate(utc, false);
-  });
-  const param = new URLSearchParams(location.search).get("date") ?? undefined;
-  if (param !== undefined) {
-    const parsed = Date.parse(param);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(param) || Number.isNaN(parsed)) {
-      machine.transition({ kind: "error", message: `Invalid date: ${param}` });
-      return;
-    }
-    navigate(parsed, false);
-    return;
-  }
-  navigate(todayUtc, false);
 }
 main();
