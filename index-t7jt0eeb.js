@@ -365,6 +365,7 @@ class Game {
   found;
   definitions;
   pendingDefinitions;
+  foundEls;
   renderer;
   previewEl;
   remainingEl;
@@ -386,6 +387,7 @@ class Game {
     this.found = [];
     this.definitions = definitions;
     this.pendingDefinitions = [];
+    this.foundEls = new Map;
     this.renderer = renderer;
     this.machine = machine;
     this.previewEl = document.getElementById("preview");
@@ -447,6 +449,7 @@ class Game {
     this.cancelRevealHold();
     this.machine.transition({ kind: "playing" });
     this.foundList.innerHTML = "";
+    this.foundEls.clear();
     this.pendingDefinitions = [];
     this.previewEl.textContent = "";
     this.found = [];
@@ -651,7 +654,23 @@ class Game {
       this.updatePreview();
       return true;
     }
+    if (this.state.bonusWords.has(word) && this.state.foundBonus.has(word)) {
+      this.bounceFoundWord(word);
+      sel.length = 0;
+      this.updatePreview();
+      return true;
+    }
     return false;
+  }
+  bounceFoundWord(word) {
+    const el = this.foundEls.get(word);
+    if (el === undefined)
+      return;
+    el.animate([
+      { transform: "translateY(0)" },
+      { transform: "translateY(-10px)" },
+      { transform: "translateY(0)" }
+    ], { duration: 350, easing: "ease-out" });
   }
   removeWord(placement) {
     const beforeEdges = this.buildVisibleEdges();
@@ -718,6 +737,7 @@ class Game {
     li.appendChild(definitionEl);
     if (bonus)
       li.className = "bonus";
+    this.foundEls.set(word, li);
     this.foundList.prepend(li);
     older.forEach((el, i) => {
       const delta = olderTops[i] - el.getBoundingClientRect().top;
