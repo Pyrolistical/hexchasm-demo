@@ -350,6 +350,9 @@ function saveProgress(progress) {
 function clearProgress() {
   localStorage.removeItem(PROGRESS_KEY);
 }
+function resetAll() {
+  localStorage.clear();
+}
 
 // client/game.ts
 var REVEAL_HOLD_MS = 1000;
@@ -843,6 +846,7 @@ function setupMenu(openCalendar) {
   const hamburger = document.getElementById("hamburger");
   const menu = document.getElementById("menu");
   const howto = document.getElementById("howto");
+  const about = document.getElementById("about");
   hamburger.addEventListener("click", (e) => {
     e.stopPropagation();
     menu.hidden = !menu.hidden;
@@ -854,11 +858,36 @@ function setupMenu(openCalendar) {
     howto.showModal();
   });
   document.getElementById("menu-past").addEventListener("click", openCalendar);
+  document.getElementById("menu-about").addEventListener("click", () => {
+    about.showModal();
+  });
+  setupResetAll();
   for (const dialog of document.querySelectorAll("dialog")) {
     dialog.querySelector(".close").addEventListener("click", () => {
       dialog.close();
     });
   }
+}
+var RESET_HOLD_MS = 1000;
+function setupResetAll() {
+  const button = document.getElementById("reset-all");
+  let timeout = 0;
+  const cancel = () => {
+    window.clearTimeout(timeout);
+    button.classList.remove("holding");
+  };
+  button.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    button.setPointerCapture(e.pointerId);
+    button.classList.add("holding");
+    timeout = window.setTimeout(() => {
+      cancel();
+      resetAll();
+      location.reload();
+    }, RESET_HOLD_MS);
+  });
+  button.addEventListener("pointerup", cancel);
+  button.addEventListener("pointercancel", cancel);
 }
 function setupCalendar(todayUtc, selectedUtc, total) {
   const dialog = document.getElementById("calendar");
