@@ -866,6 +866,12 @@ function setupMenu(openCalendar) {
     dialog.querySelector(".close").addEventListener("click", () => {
       dialog.close();
     });
+    dialog.addEventListener("click", (e) => {
+      const rect = dialog.getBoundingClientRect();
+      if (e.clientY < rect.top || e.clientY > rect.bottom || e.clientX < rect.left || e.clientX > rect.right) {
+        dialog.close();
+      }
+    });
   }
 }
 var RESET_HOLD_MS = 1000;
